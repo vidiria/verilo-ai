@@ -17,11 +17,8 @@
     </button>
     
     <div class="logo-container">
-      <svg class="logo" viewBox="0 0 100 100" fill="none">
-        <path d="M50 0L87.5 25V75L50 100L12.5 75V25L50 0Z" fill="#1b2331"/>
-        <path d="M35 30L55 70H75L55 30H35Z" fill="white"/>
-        <path d="M55 70L40 45L25 70H55Z" fill="#ff6b44"/>
-      </svg>
+      <!-- Imagem de logo em vez do SVG -->
+      <img src="img/logo.png" alt="Verilo Logo" class="logo">
       <span class="logo-text">verilo.ai</span>
     </div>
     
@@ -104,6 +101,15 @@
         </div>
         
         <div class="chat-actions">
+          <!-- Adição: Seletor de vozes para TTS -->
+          <select id="voiceSelector" class="voice-selector">
+            <option value="alloy">Voz Neutra</option>
+            <option value="echo">Voz Masculina</option>
+            <option value="fable">Voz Feminina</option>
+            <option value="onyx">Voz Grave</option>
+            <option value="nova">Voz Suave</option>
+          </select>
+          
           <button class="lousa-button" id="lousaButton">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
