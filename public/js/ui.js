@@ -29,19 +29,20 @@ const elements = {
   penseiraModal: document.getElementById('penseiraModal'),
   penseiraContent: document.getElementById('penseiraContent'),
   closeModal: document.getElementById('closeModal'),
-  voiceSelector: document.getElementById('voiceSelector')
+  voiceSelector: document.getElementById('voiceSelector'),
+  voiceBubble: document.getElementById('voiceBubble')
 };
 
 // Estado da UI
 const uiState = {
   currentConversationId: 'new',
-  activeModel: 'gpt-4o',
-  advancedMode: false,
+  activeModel: 'claude-3-7-sonnet', // Sempre usando Claude
+  advancedMode: true, // Extended Thinking ativado por padrão
   attachments: [],
   recording: false,
   darkMode: false,
   currentStream: null, // Para rastrear a stream de áudio atual
-  selectedVoice: 'alloy' // Voz padrão para TTS
+  selectedVoice: 'nova' // Voz feminina suave por padrão
 };
 
 // Inicialização da UI
@@ -49,7 +50,7 @@ function initUI() {
   // Preencher mensagem de boas-vindas
   addAssistantMessage({
     id: 'welcome',
-    content: "Olá! Sou o Verilo, seu assistente de IA integrado. Posso ajudar com pesquisas, escrita, análise de dados, programação e muito mais. Como posso ajudar você hoje?"
+    content: "Olá! Sou o Verilo, seu assistente de IA integrado com Claude 3.7. Estou pronto para ajudar com pesquisas, escrita, análise de dados, programação e muito mais. Como posso ajudar você hoje?"
   });
   
   // Carregar conversas do localStorage
@@ -167,8 +168,7 @@ function toggleAdvancedMode() {
 }
 
 function updateAdvancedModeLabel() {
-  const isClaudeModel = uiState.activeModel.includes('claude');
-  const label = isClaudeModel ? 'Extended Thinking' : 'Investigar';
+  const label = 'Extended Thinking';
   
   if (uiState.advancedMode) {
     if (elements.advancedToggle.querySelector('span')) {
@@ -241,6 +241,33 @@ function showNotification(message, type = 'info') {
       notification.remove();
     }, 300);
   }, 3000);
+}
+
+// Função para exibir progresso
+function showProgress(percent, message) {
+  let progressOverlay = document.querySelector('.progress-overlay');
+  
+  if (!progressOverlay) {
+    progressOverlay = document.createElement('div');
+    progressOverlay.className = 'progress-overlay';
+    progressOverlay.innerHTML = `
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <span class="progress-text">${message || 'Processando...'}</span>
+    `;
+    document.body.appendChild(progressOverlay);
+  } else {
+    progressOverlay.querySelector('.progress-text').textContent = message || 'Processando...';
+  }
+  
+  const progressFill = progressOverlay.querySelector('.progress-fill');
+  progressFill.style.width = `${percent}%`;
+  
+  if (percent >= 100) {
+    setTimeout(() => {
+      progressOverlay.classList.add('fade-out');
+      setTimeout(() => progressOverlay.remove(), 500);
+    }, 1000);
+  }
 }
 
 // Funções de manipulação da UI
@@ -373,7 +400,7 @@ function loadConversation(conversationId) {
     // Adicionar mensagem de boas-vindas
     addAssistantMessage({
       id: 'welcome',
-      content: "Olá! Sou o Verilo, seu assistente de IA integrado. Posso ajudar com pesquisas, escrita, análise de dados, programação e muito mais. Como posso ajudar você hoje?"
+      content: "Olá! Sou o Verilo, seu assistente de IA integrado com Claude 3.7. Estou pronto para ajudar com pesquisas, escrita, análise de dados, programação e muito mais. Como posso ajudar você hoje?"
     });
   } else {
     // Carregar conversa existente
@@ -383,23 +410,6 @@ function loadConversation(conversationId) {
     if (conversation) {
       elements.messagesContainer.innerHTML = '';
       uiState.currentConversationId = conversationId;
-      
-      // Definir modelo ativo
-      const modelBtn = Array.from(elements.modelButtons).find(btn => 
-        btn.getAttribute('data-model') === conversation.modelId
-      );
-      
-      if (modelBtn) {
-        elements.modelButtons.forEach(btn => btn.classList.remove('active'));
-        modelBtn.classList.add('active');
-        elements.currentModel.textContent = modelBtn.textContent;
-        uiState.activeModel = conversation.modelId;
-        
-        // Atualizar select mobile também
-        if (elements.mobileModelSelect) {
-          elements.mobileModelSelect.value = conversation.modelId;
-        }
-      }
       
       // Carregar mensagens
       conversation.messages.forEach(message => {
@@ -423,14 +433,19 @@ function loadPenseiraMemories() {
   if (memories.length === 0) {
     const defaultMemories = [
       {
-        id: 'interface',
-        title: 'Preferências de Interface',
-        content: 'Você demonstrou preferência por interfaces minimalistas com design monocromático e toques de cor laranja para destaque. Suas escolhas de interface se alinham com o estilo xAI/Tesla UI.'
+        id: 'profile',
+        title: 'Perfil do Usuário',
+        content: '[SEU NOME] é um profissional [SUA PROFISSÃO] com interesses em [SEUS INTERESSES]. Prefere comunicação direta e detalhada, especialmente em tópicos sobre [SEUS TÓPICOS PREFERIDOS].'
       },
       {
-        id: 'models',
-        title: 'Modelos Favoritos',
-        content: 'Seus modelos mais utilizados são GPT-O1, GPT-4o, GPT-4.5 e Claude 3.7 Sonnet com Extended Thinking. Você tende a preferir o GPT-4o para tarefas criativas e o Claude 3.7 para análises mais detalhadas.'
+        id: 'preferences',
+        title: 'Preferências de Conversação',
+        content: 'Prefere comunicação formal mas calorosa. Aprecia explicações detalhadas seguidas de exemplos concretos, especialmente ao discutir conceitos técnicos.'
+      },
+      {
+        id: 'projects',
+        title: 'Projetos Atuais',
+        content: 'Trabalhando em: [LISTA DE SEUS PROJETOS ATUAIS]'
       }
     ];
     
@@ -460,5 +475,6 @@ window.ui = {
   loadConversations,
   loadConversation,
   initUI,
-  showNotification
+  showNotification,
+  showProgress
 };
