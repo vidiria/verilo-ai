@@ -22,28 +22,22 @@
       <span class="logo-text">verilo.ai</span>
     </div>
     
-    <!-- Desktop model selector -->
+    <!-- Desktop model selector - Apenas o Claude -->
     <div class="models-selector desktop-only">
-      <button class="model-button" data-model="gpt-o1">GPT-O1</button>
-      <button class="model-button active" data-model="gpt-4o">GPT-4o</button>
-      <button class="model-button" data-model="gpt-4-turbo">GPT-4.5</button>
-      <button class="model-button" data-model="claude-3-7-sonnet">Claude 3.7</button>
+      <button class="model-button active" data-model="claude-3-7-sonnet">Claude 3.7</button>
     </div>
     
-    <!-- Mobile model selector -->
+    <!-- Mobile model selector - Apenas o Claude -->
     <select class="model-dropdown mobile-only" id="mobileModelSelect">
-      <option value="gpt-o1">GPT-O1</option>
-      <option value="gpt-4o" selected>GPT-4o</option>
-      <option value="gpt-4-turbo">GPT-4.5</option>
-      <option value="claude-3-7-sonnet">Claude 3.7</option>
+      <option value="claude-3-7-sonnet" selected>Claude 3.7</option>
     </select>
     
-    <button class="advanced-toggle" id="advancedToggle">
+    <button class="advanced-toggle active" id="advancedToggle">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"></circle>
         <path d="M12 8v4M12 16h.01"></path>
       </svg>
-      <span>Modo Avançado</span>
+      <span>Extended Thinking</span>
     </button>
     
     <div class="user-menu">
@@ -97,7 +91,7 @@
       <div class="chat-header">
         <div class="chat-title">
           Nova conversa
-          <span class="chat-model-tag" id="currentModel">GPT-4o</span>
+          <span class="chat-model-tag" id="currentModel">Claude 3.7</span>
         </div>
         
         <div class="chat-actions">
@@ -107,7 +101,7 @@
             <option value="echo">Voz Masculina</option>
             <option value="fable">Voz Feminina</option>
             <option value="onyx">Voz Grave</option>
-            <option value="nova">Voz Suave</option>
+            <option value="nova" selected>Voz Suave</option>
           </select>
           
           <button class="lousa-button" id="lousaButton">
@@ -146,14 +140,14 @@
               </svg>
               Anexar
             </button>
-            <button class="tool-button mode-advanced" id="modeAdvancedBtn">
+            <button class="tool-button mode-advanced active" id="modeAdvancedBtn">
               <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 <line x1="11" y1="8" x2="11" y2="14"></line>
                 <line x1="8" y1="11" x2="14" y2="11"></line>
               </svg>
-              Modo Avançado
+              Extended Thinking
             </button>
           </div>
           
@@ -256,6 +250,21 @@
     </div>
   </div>
   
+  <!-- Voice Bubble -->
+  <div class="voice-bubble" id="voiceBubble">
+    <div class="voice-animation">
+      <div class="voice-bar"></div>
+      <div class="voice-bar"></div>
+      <div class="voice-bar"></div>
+      <div class="voice-bar"></div>
+    </div>
+    <div class="voice-timer">0:00</div>
+    <div class="voice-controls">
+      <button class="voice-stop-btn">Concluir</button>
+      <button class="voice-cancel-btn">Cancelar</button>
+    </div>
+  </div>
+
   <!-- File Upload Dialog (invisível) -->
   <input type="file" id="fileInput" multiple style="display: none;">
   
