@@ -44,6 +44,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Inicializar UI
   window.ui.initUI();
   
+  // Adicionar CSS para notificações
+  addNotificationStyles();
+  
   // Configurar event listeners
   
   // Enviar mensagem ao clicar no botão ou pressionar Enter
@@ -52,14 +55,22 @@ document.addEventListener('DOMContentLoaded', function() {
   
   sendButton.addEventListener('click', () => {
     const message = messageInput.value;
-    window.chat.sendMessage(message);
+    if (message.trim()) {
+      window.chat.sendMessage(message);
+    } else {
+      window.ui.showNotification('Por favor, digite uma mensagem', 'warning');
+    }
   });
   
   messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const message = messageInput.value;
-      window.chat.sendMessage(message);
+      if (message.trim()) {
+        window.chat.sendMessage(message);
+      } else {
+        window.ui.showNotification('Por favor, digite uma mensagem', 'warning');
+      }
     }
   });
   
@@ -82,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Limitar a 10 arquivos
     if (window.uiState.attachments.length + files.length > 10) {
-      alert('Você pode anexar no máximo 10 arquivos');
+      window.ui.showNotification('Você pode anexar no máximo 10 arquivos', 'warning');
       return;
     }
     
@@ -90,7 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
     files.forEach(file => {
       // Verificar tamanho (limite de 25MB por arquivo)
       if (file.size > 25 * 1024 * 1024) {
-        alert(`O arquivo ${file.name} excede o limite de 25MB`);
+        window.ui.showNotification(`O arquivo ${file.name} excede o limite de 25MB`, 'error');
         return;
       }
       
@@ -123,6 +134,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Limpar input de arquivo
     fileInput.value = '';
+    
+    window.ui.showNotification(`${files.length} arquivo(s) anexado(s)`, 'success');
   });
   
   // Remover anexo
@@ -135,6 +148,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Remover da UI
       e.target.closest('.attachment-item').remove();
+      
+      window.ui.showNotification('Anexo removido', 'info');
     }
   });
   
@@ -146,7 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
   whisperBtn.addEventListener('click', () => {
     if (window.uiState.recording) {
       // Parar gravação
-      mediaRecorder.stop();
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
       window.uiState.recording = false;
       whisperBtn.innerHTML = `
         <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
@@ -162,6 +179,9 @@ document.addEventListener('DOMContentLoaded', function() {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
           window.uiState.recording = true;
+          // Guardar a referência da stream para poder fechá-la depois
+          window.uiState.currentStream = stream;
+          
           whisperBtn.innerHTML = `
             <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
               <rect x="18" y="3" width="4" height="18"></rect>
@@ -179,27 +199,58 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           
           mediaRecorder.addEventListener('stop', async () => {
+            window.ui.showNotification('Processando gravação...', 'info');
+            
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             
-            // Transcrever áudio
-            const text = await window.chat.transcribeAudio(audioBlob);
-            
-            if (text) {
-              messageInput.value = text;
-              messageInput.style.height = 'auto';
-              messageInput.style.height = (messageInput.scrollHeight) + 'px';
-              messageInput.focus();
+            try {
+              // Transcrever áudio
+              const text = await window.chat.transcribeAudio(audioBlob);
+              
+              if (text) {
+                messageInput.value = text;
+                messageInput.style.height = 'auto';
+                messageInput.style.height = (messageInput.scrollHeight) + 'px';
+                messageInput.focus();
+                window.ui.showNotification('Transcrição concluída!', 'success');
+              } else {
+                window.ui.showNotification('Não foi possível transcrever o áudio', 'error');
+              }
+            } catch (error) {
+              window.ui.showNotification('Erro ao processar o áudio: ' + error.message, 'error');
+            } finally {
+              // Parar de usar o microfone
+              if (window.uiState.currentStream) {
+                window.uiState.currentStream.getTracks().forEach(track => track.stop());
+                window.uiState.currentStream = null;
+              }
             }
-            
-            // Parar de usar o microfone
-            stream.getTracks().forEach(track => track.stop());
           });
           
+          // Definir um timeout de 60 segundos para a gravação
+          setTimeout(() => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+              window.ui.showNotification('Gravação finalizada (limite de 60s)', 'info');
+              mediaRecorder.stop();
+              window.uiState.recording = false;
+              whisperBtn.innerHTML = `
+                <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                Whisper
+              `;
+            }
+          }, 60000);
+          
           mediaRecorder.start();
+          window.ui.showNotification('Gravação iniciada - fale agora', 'info');
         })
         .catch(err => {
           console.error('Erro ao acessar o microfone:', err);
-          alert('Não foi possível acessar o microfone');
+          window.ui.showNotification('Não foi possível acessar o microfone', 'error');
           window.uiState.recording = false;
         });
     }
@@ -217,8 +268,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const messageElement = actionBtn.closest('.message');
         const messageContent = messageElement.querySelector('.message-content').textContent;
         
-        // Sintetizar voz
-        window.chat.textToSpeech(messageContent, messageId);
+        // Indicador de status
+        const originalText = actionBtn.innerHTML;
+        actionBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Processando...
+        `;
+        
+        // Sintetizar voz com a voz selecionada
+        window.chat.textToSpeech(messageContent, window.uiState.selectedVoice)
+          .then(() => {
+            actionBtn.innerHTML = originalText;
+          })
+          .catch(() => {
+            actionBtn.innerHTML = originalText;
+          });
+        
       } else if (action === 'copy') {
         // Encontrar mensagem
         const messageElement = actionBtn.closest('.message');
@@ -244,8 +312,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 Copiar
               `;
             }, 2000);
+            
+            window.ui.showNotification('Texto copiado para a área de transferência', 'success');
           })
           .catch(err => {
+            window.ui.showNotification('Erro ao copiar o texto', 'error');
             console.error('Erro ao copiar texto:', err);
           });
       }
@@ -271,4 +342,86 @@ document.addEventListener('DOMContentLoaded', function() {
       updateAdvancedModeLabel();
     });
   }
+  
+  // Botão para salvar conteúdo da Lousa
+  const lousaSaveBtn = document.getElementById('lousaSaveBtn');
+  if (lousaSaveBtn) {
+    lousaSaveBtn.addEventListener('click', () => {
+      const lousaContent = document.getElementById('lousaEditor').value;
+      if (lousaContent.trim()) {
+        // Adicionar à Penseira
+        window.chat.addToPenseira({
+          id: 'lousa_' + Date.now(),
+          title: 'Nota da Lousa - ' + new Date().toLocaleDateString(),
+          content: lousaContent
+        });
+        
+        // Fechar modal e mostrar notificação
+        document.getElementById('lousaModal').classList.remove('open');
+        window.ui.showNotification('Conteúdo salvo na Penseira', 'success');
+      }
+    });
+  }
+  
+  // Detecção de erros de rede
+  window.addEventListener('online', () => {
+    window.ui.showNotification('Conexão restabelecida', 'success');
+  });
+  
+  window.addEventListener('offline', () => {
+    window.ui.showNotification('Sem conexão com a internet', 'error');
+  });
 });
+
+// Adicionar estilos para notificações
+function addNotificationStyles() {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = `
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+    }
+    
+    .notification.info {
+      background-color: #2196F3;
+    }
+    
+    .notification.success {
+      background-color: #4CAF50;
+    }
+    
+    .notification.warning {
+      background-color: #FF9800;
+    }
+    
+    .notification.error {
+      background-color: #F44336;
+    }
+    
+    .notification.fade-out {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  `;
+  
+  document.head.appendChild(styleElement);
+}
