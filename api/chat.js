@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
     if (model.includes('gpt')) {
       // API da OpenAI para modelos GPT
       const openai = new OpenAI({
-        apiKey: process.env.process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY
 ,
       });
       
