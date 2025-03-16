@@ -28,7 +28,8 @@ const elements = {
   penseiraButton: document.getElementById('penseiraButton'),
   penseiraModal: document.getElementById('penseiraModal'),
   penseiraContent: document.getElementById('penseiraContent'),
-  closeModal: document.getElementById('closeModal')
+  closeModal: document.getElementById('closeModal'),
+  voiceSelector: document.getElementById('voiceSelector')
 };
 
 // Estado da UI
@@ -38,7 +39,9 @@ const uiState = {
   advancedMode: false,
   attachments: [],
   recording: false,
-  darkMode: false
+  darkMode: false,
+  currentStream: null, // Para rastrear a stream de áudio atual
+  selectedVoice: 'alloy' // Voz padrão para TTS
 };
 
 // Inicialização da UI
@@ -54,11 +57,42 @@ function initUI() {
   
   // Inicializar a Penseira
   loadPenseiraMemories();
+
+  // Inicializar seletor de vozes se existir
+  if (elements.voiceSelector) {
+    elements.voiceSelector.addEventListener('change', function() {
+      uiState.selectedVoice = this.value;
+    });
+  }
+}
+
+// Função de sanitização para prevenir XSS
+function sanitizeHTML(text) {
+  const temp = document.createElement('div');
+  temp.textContent = text;
+  return temp.innerHTML;
 }
 
 // Toggle do menu mobile
-elements.mobileMenuButton.addEventListener('click', () => {
+elements.mobileMenuButton.addEventListener('click', (e) => {
+  e.stopPropagation(); // Impede que o clique se propague ao document
   elements.sidebar.classList.toggle('open');
+});
+
+// Fechar o menu mobile ao clicar fora
+document.addEventListener('click', (e) => {
+  if (elements.sidebar.classList.contains('open') && 
+      !e.target.closest('.sidebar') && 
+      !e.target.closest('#mobileMenuButton')) {
+    elements.sidebar.classList.remove('open');
+  }
+});
+
+// Fechar o menu mobile ao clicar em qualquer item dentro dele
+elements.sidebar.addEventListener('click', (e) => {
+  if (e.target.closest('.conversation-item') || e.target.closest('.sidebar-tab')) {
+    elements.sidebar.classList.remove('open');
+  }
 });
 
 // Alternar entre abas
@@ -185,11 +219,29 @@ elements.penseiraModal.addEventListener('click', (e) => {
   }
 });
 
-// Auto-resize textarea
+// Auto-resize textarea com limite de altura
 elements.messageInput.addEventListener('input', function() {
   this.style.height = 'auto';
-  this.style.height = (this.scrollHeight) + 'px';
+  const newHeight = Math.min(this.scrollHeight, 200); // Limite de 200px
+  this.style.height = `${newHeight}px`;
 });
+
+// Exibir notificação ao usuário
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Remover após 3 segundos
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
+  }, 3000);
+}
 
 // Funções de manipulação da UI
 function addUserMessage(message) {
@@ -198,7 +250,7 @@ function addUserMessage(message) {
   messageElement.innerHTML = `
     <div class="message-bubble">
       <div class="message-content">
-        ${message.content}
+        ${sanitizeHTML(message.content)}
       </div>
     </div>
     <div class="message-meta">
@@ -220,7 +272,7 @@ function addAssistantMessage(message) {
         <strong>Verilo</strong>
       </div>
       <div class="message-content">
-        ${message.content}
+        ${sanitizeHTML(message.content)}
       </div>
     </div>
     <div class="message-actions">
@@ -289,9 +341,9 @@ function loadConversations() {
     conversationElement.innerHTML = `
       <div class="conversation-icon">${firstChars}</div>
       <div class="conversation-content">
-        <div class="conversation-title">${conversation.title}</div>
+        <div class="conversation-title">${sanitizeHTML(conversation.title)}</div>
         <div class="conversation-details">
-          <div class="model-tag">${conversation.model}</div>
+          <div class="model-tag">${sanitizeHTML(conversation.model)}</div>
           <span>${conversation.date}</span>
         </div>
       </div>
@@ -391,8 +443,8 @@ function loadPenseiraMemories() {
     const memoryElement = document.createElement('div');
     memoryElement.className = 'memory-card';
     memoryElement.innerHTML = `
-      <div class="memory-title">${memory.title}</div>
-      <div class="memory-content">${memory.content}</div>
+      <div class="memory-title">${sanitizeHTML(memory.title)}</div>
+      <div class="memory-content">${sanitizeHTML(memory.content)}</div>
     `;
     
     elements.penseiraContent.appendChild(memoryElement);
@@ -407,5 +459,6 @@ window.ui = {
   getCurrentTime,
   loadConversations,
   loadConversation,
-  initUI
+  initUI,
+  showNotification
 };
