@@ -2,15 +2,15 @@
   "name": "verilo",
   "version": "0.1.0",
   "description": "Assistente de IA Verilo - Interface unificada para o Claude",
-  "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.10.0",
-    "@vercel/ai": "^2.2.0",
+    "ai": "^2.2.31",
     "formidable": "^2.1.2",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "replicate": "^0.25.2"
   }
 }
