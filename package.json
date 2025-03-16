@@ -4,14 +4,16 @@
   "description": "Assistente de IA Verilo - Interface unificada para Claude e Grok",
   "scripts": {
     "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "deploy": "vercel --prod",
+    "start": "node api/server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.10.0",
     "ai": "^2.2.31",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
     "formidable": "^2.1.2",
     "node-fetch": "^2.6.7",
-    "replicate": "^0.25.2",
-    "xai-sdk": "^1.0.0" // Hipotético para Grok
+    "replicate": "^0.25.2"
   }
 }
