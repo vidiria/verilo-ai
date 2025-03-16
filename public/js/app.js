@@ -424,4 +424,209 @@ function addNotificationStyles() {
   `;
   
   document.head.appendChild(styleElement);
+  // Indicador de conexão
+function setupConnectionIndicator() {
+  const statusIndicator = document.createElement('div');
+  statusIndicator.className = 'connection-status';
+  document.body.appendChild(statusIndicator);
+  
+  function updateConnectionStatus() {
+    if (navigator.onLine) {
+      statusIndicator.className = 'connection-status online';
+      statusIndicator.innerHTML = '<span>Online</span>';
+      setTimeout(() => statusIndicator.classList.add('fade-out'), 3000);
+    } else {
+      statusIndicator.className = 'connection-status offline';
+      statusIndicator.innerHTML = '<span>Offline</span>';
+    }
+  }
+  
+  window.addEventListener('online', updateConnectionStatus);
+  window.addEventListener('offline', updateConnectionStatus);
+  updateConnectionStatus();
+}
+
+// Função para exibir progresso em uploads
+function showProgress(percent, message) {
+  let progressOverlay = document.querySelector('.progress-overlay');
+  
+  if (!progressOverlay) {
+    progressOverlay = document.createElement('div');
+    progressOverlay.className = 'progress-overlay';
+    progressOverlay.innerHTML = `
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <span class="progress-text">${message || 'Processando...'}</span>
+    `;
+    document.body.appendChild(progressOverlay);
+  }
+  
+  const progressFill = progressOverlay.querySelector('.progress-fill');
+  progressFill.style.width = `${percent}%`;
+  
+  if (percent >= 100) {
+    setTimeout(() => {
+      progressOverlay.classList.add('fade-out');
+      setTimeout(() => progressOverlay.remove(), 500);
+    }, 1000);
+  }
+}
+
+// Inicializar indicador de conexão
+setupConnectionIndicator();
+
+// Expor função de progresso globalmente
+window.ui.showProgress = showProgress;
+  // Interface de Voz
+function setupVoiceInterface() {
+  const voiceBubble = document.getElementById('voiceBubble');
+  const voiceTimer = voiceBubble.querySelector('.voice-timer');
+  const stopBtn = voiceBubble.querySelector('.voice-stop-btn');
+  const cancelBtn = voiceBubble.querySelector('.voice-cancel-btn');
+  let timerInterval;
+  let seconds = 0;
+  
+  function showVoiceBubble() {
+    voiceBubble.classList.add('active');
+    // Reset timer
+    seconds = 0;
+    updateTimer();
+    
+    // Start timer
+    timerInterval = setInterval(() => {
+      seconds++;
+      updateTimer();
+      // Auto-stop after 60 seconds
+      if (seconds >= 60) stopRecording();
+    }, 1000);
+  }
+  
+  function hideVoiceBubble() {
+    voiceBubble.classList.remove('active');
+    clearInterval(timerInterval);
+  }
+  
+  function updateTimer() {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    voiceTimer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  function stopRecording() {
+    hideVoiceBubble();
+    // Trigger the existing stop recording logic
+    if (window.uiState.recording) {
+      document.getElementById('whisperBtn').click();
+    }
+  }
+  
+  function cancelRecording() {
+    hideVoiceBubble();
+    // Add logic to cancel recording
+    if (window.uiState.recording && window.uiState.currentStream) {
+      window.uiState.currentStream.getTracks().forEach(track => track.stop());
+      window.uiState.recording = false;
+      window.uiState.currentStream = null;
+      
+      // Resetar o botão Whisper
+      document.getElementById('whisperBtn').innerHTML = `
+        <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        Whisper
+      `;
+    }
+  }
+  
+  // Event listeners
+  stopBtn.addEventListener('click', stopRecording);
+  cancelBtn.addEventListener('click', cancelRecording);
+  
+  // Modificar o comportamento do botão Whisper
+  const whisperBtn = document.getElementById('whisperBtn');
+  const originalWhisperClick = whisperBtn.onclick;
+  
+  whisperBtn.onclick = function(e) {
+    // Se não for removido e redefinido, os event listeners se acumularão
+    whisperBtn.onclick = null;
+    
+    const result = originalWhisperClick.call(this, e);
+    
+    // Re-atribuir event listener
+    setTimeout(() => {
+      whisperBtn.onclick = arguments.callee;
+      
+      // Se começou a gravar, mostrar bolha de voz
+      if (window.uiState.recording) {
+        showVoiceBubble();
+      } else {
+        hideVoiceBubble();
+      }
+    }, 100);
+    
+    return result;
+  };
+}
+
+// Inicializar interface de voz
+setupVoiceInterface();
+// Sistema de Tooltips
+function setupTooltips() {
+  const tooltips = [
+    { selector: '#whisperBtn', text: 'Clique para gravar áudio e transcrever automaticamente', position: 'top' },
+    { selector: '#advancedToggle', text: 'Ative para análises mais profundas e respostas detalhadas', position: 'bottom' },
+    { selector: '#lousaButton', text: 'Edite e salve notas importantes na Lousa', position: 'bottom' },
+    { selector: '#penseiraButton', text: 'Acesse as memórias salvas do Verilo', position: 'top' },
+    { selector: '#voiceSelector', text: 'Escolha diferentes vozes para o assistente', position: 'bottom' },
+    { selector: '#newChatBtn', text: 'Inicie uma nova conversa', position: 'bottom' },
+    { selector: '#attachBtn', text: 'Anexe arquivos à sua mensagem', position: 'top' }
+  ];
+  
+  // Create tooltip container
+  const tooltipContainer = document.createElement('div');
+  tooltipContainer.className = 'tooltip-container';
+  document.body.appendChild(tooltipContainer);
+  
+  // Setup each tooltip
+  tooltips.forEach(tooltip => {
+    const element = document.querySelector(tooltip.selector);
+    if (!element) return;
+    
+    element.setAttribute('data-tooltip', tooltip.text);
+    element.setAttribute('data-position', tooltip.position);
+    
+    element.addEventListener('mouseenter', showTooltip);
+    element.addEventListener('mouseleave', hideTooltip);
+    element.addEventListener('focus', showTooltip);
+    element.addEventListener('blur', hideTooltip);
+  });
+  
+  function showTooltip(e) {
+    const text = this.getAttribute('data-tooltip');
+    const position = this.getAttribute('data-position') || 'top';
+    
+    tooltipContainer.textContent = text;
+    tooltipContainer.className = `tooltip-container ${position} visible`;
+    
+    const rect = this.getBoundingClientRect();
+    
+    if (position === 'top') {
+      tooltipContainer.style.bottom = `${window.innerHeight - rect.top + 10}px`;
+      tooltipContainer.style.left = `${rect.left + rect.width/2}px`;
+    } else if (position === 'bottom') {
+      tooltipContainer.style.top = `${rect.bottom + 10}px`;
+      tooltipContainer.style.left = `${rect.left + rect.width/2}px`;
+    }
+  }
+  
+  function hideTooltip() {
+    tooltipContainer.className = 'tooltip-container';
+  }
+}
+
+// Inicializar tooltips
+setupTooltips();
+  
 }
