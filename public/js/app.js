@@ -153,109 +153,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  // Botão Whisper
-  const whisperBtn = document.getElementById('whisperBtn');
-  let mediaRecorder;
-  let audioChunks = [];
-  
-  whisperBtn.addEventListener('click', () => {
-    if (window.uiState.recording) {
-      // Parar gravação
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
-      window.uiState.recording = false;
-      whisperBtn.innerHTML = `
-        <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-          <line x1="12" y1="19" x2="12" y2="23"></line>
-          <line x1="8" y1="23" x2="16" y2="23"></line>
-        </svg>
-        Whisper
-      `;
-    } else {
-      // Iniciar gravação
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-          window.uiState.recording = true;
-          // Guardar a referência da stream para poder fechá-la depois
-          window.uiState.currentStream = stream;
-          
-          whisperBtn.innerHTML = `
-            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <rect x="18" y="3" width="4" height="18"></rect>
-              <rect x="10" y="8" width="4" height="13"></rect>
-              <rect x="2" y="13" width="4" height="8"></rect>
-            </svg>
-            Gravando...
-          `;
-          
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          
-          mediaRecorder.addEventListener('dataavailable', event => {
-            audioChunks.push(event.data);
-          });
-          
-          mediaRecorder.addEventListener('stop', async () => {
-            window.ui.showNotification('Processando gravação...', 'info');
-            
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            
-            try {
-              // Transcrever áudio
-              const text = await window.chat.transcribeAudio(audioBlob);
-              
-              if (text) {
-                messageInput.value = text;
-                messageInput.style.height = 'auto';
-                messageInput.style.height = (messageInput.scrollHeight) + 'px';
-                messageInput.focus();
-                window.ui.showNotification('Transcrição concluída!', 'success');
-              } else {
-                window.ui.showNotification('Não foi possível transcrever o áudio', 'error');
-              }
-            } catch (error) {
-              window.ui.showNotification('Erro ao processar o áudio: ' + error.message, 'error');
-            } finally {
-              // Parar de usar o microfone
-              if (window.uiState.currentStream) {
-                window.uiState.currentStream.getTracks().forEach(track => track.stop());
-                window.uiState.currentStream = null;
-              }
-            }
-          });
-          
-          // Definir um timeout de 60 segundos para a gravação
-          setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-              window.ui.showNotification('Gravação finalizada (limite de 60s)', 'info');
-              mediaRecorder.stop();
-              window.uiState.recording = false;
-              whisperBtn.innerHTML = `
-                <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                  <line x1="12" y1="19" x2="12" y2="23"></line>
-                  <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-                Whisper
-              `;
-            }
-          }, 60000);
-          
-          mediaRecorder.start();
-          window.ui.showNotification('Gravação iniciada - fale agora', 'info');
-        })
-        .catch(err => {
-          console.error('Erro ao acessar o microfone:', err);
-          window.ui.showNotification('Não foi possível acessar o microfone', 'error');
-          window.uiState.recording = false;
-        });
-    }
-  });
-  
   // Listeners para ações nas mensagens
   document.addEventListener('click', (e) => {
     const actionBtn = e.target.closest('.message-action-btn');
@@ -371,6 +268,11 @@ document.addEventListener('DOMContentLoaded', function() {
   window.addEventListener('offline', () => {
     window.ui.showNotification('Sem conexão com a internet', 'error');
   });
+  
+  // Inicializar componentes extras
+  setupVoiceInterface();
+  setupConnectionIndicator();
+  setupTooltips();
 });
 
 // Adicionar estilos para notificações
@@ -424,7 +326,9 @@ function addNotificationStyles() {
   `;
   
   document.head.appendChild(styleElement);
-  // Indicador de conexão
+}
+
+// Indicador de conexão
 function setupConnectionIndicator() {
   const statusIndicator = document.createElement('div');
   statusIndicator.className = 'connection-status';
@@ -471,22 +375,49 @@ function showProgress(percent, message) {
   }
 }
 
-// Inicializar indicador de conexão
-setupConnectionIndicator();
-
-// Expor função de progresso globalmente
-window.ui.showProgress = showProgress;
-  // Interface de Voz
+// Interface de Voz - VERSÃO CORRIGIDA
 function setupVoiceInterface() {
-  const voiceBubble = document.getElementById('voiceBubble');
+  // Verificar se o elemento já existe
+  let voiceBubble = document.getElementById('voiceBubble');
+  
+  // Se não existir, criar o elemento
+  if (!voiceBubble) {
+    voiceBubble = document.createElement('div');
+    voiceBubble.id = 'voiceBubble';
+    voiceBubble.className = 'voice-bubble';
+    voiceBubble.innerHTML = `
+      <div class="voice-animation">
+        <div class="voice-bar"></div>
+        <div class="voice-bar"></div>
+        <div class="voice-bar"></div>
+        <div class="voice-bar"></div>
+      </div>
+      <div class="voice-timer">0:00</div>
+      <div class="voice-controls">
+        <button class="voice-stop-btn">Concluir</button>
+        <button class="voice-cancel-btn">Cancelar</button>
+      </div>
+    `;
+    document.body.appendChild(voiceBubble);
+  }
+  
+  // Ocultar o voice bubble na inicialização
+  voiceBubble.style.display = 'none';
+  
+  // Obter elementos dentro do voice bubble
   const voiceTimer = voiceBubble.querySelector('.voice-timer');
   const stopBtn = voiceBubble.querySelector('.voice-stop-btn');
   const cancelBtn = voiceBubble.querySelector('.voice-cancel-btn');
   let timerInterval;
   let seconds = 0;
   
+  // Funções da interface de voz
   function showVoiceBubble() {
-    voiceBubble.classList.add('active');
+    voiceBubble.style.display = 'block';
+    setTimeout(() => {
+      voiceBubble.classList.add('active');
+    }, 10);
+    
     // Reset timer
     seconds = 0;
     updateTimer();
@@ -503,6 +434,9 @@ function setupVoiceInterface() {
   function hideVoiceBubble() {
     voiceBubble.classList.remove('active');
     clearInterval(timerInterval);
+    setTimeout(() => {
+      voiceBubble.style.display = 'none';
+    }, 300);
   }
   
   function updateTimer() {
@@ -515,7 +449,23 @@ function setupVoiceInterface() {
     hideVoiceBubble();
     // Trigger the existing stop recording logic
     if (window.uiState.recording) {
-      document.getElementById('whisperBtn').click();
+      if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
+        window.mediaRecorder.stop();
+      }
+      window.uiState.recording = false;
+      
+      const whisperBtn = document.getElementById('whisperBtn');
+      if (whisperBtn) {
+        whisperBtn.innerHTML = `
+          <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          Whisper
+        `;
+      }
     }
   }
   
@@ -528,7 +478,44 @@ function setupVoiceInterface() {
       window.uiState.currentStream = null;
       
       // Resetar o botão Whisper
-      document.getElementById('whisperBtn').innerHTML = `
+      const whisperBtn = document.getElementById('whisperBtn');
+      if (whisperBtn) {
+        whisperBtn.innerHTML = `
+          <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          Whisper
+        `;
+      }
+    }
+  }
+  
+  // Event listeners
+  stopBtn.addEventListener('click', stopRecording);
+  cancelBtn.addEventListener('click', cancelRecording);
+  
+  // Configurar o botão Whisper
+  const whisperBtn = document.getElementById('whisperBtn');
+  if (!whisperBtn) return;
+  
+  // Armazenar o click handler original para não perder funcionalidade
+  const originalOnclick = whisperBtn.onclick;
+  
+  // Remover handler antigo se existir
+  whisperBtn.onclick = null;
+  
+  // Configurar novo event listener para o botão Whisper
+  whisperBtn.addEventListener('click', function() {
+    if (window.uiState.recording) {
+      // Parar gravação
+      if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
+        window.mediaRecorder.stop();
+      }
+      window.uiState.recording = false;
+      this.innerHTML = `
         <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
           <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -537,41 +524,92 @@ function setupVoiceInterface() {
         </svg>
         Whisper
       `;
+      hideVoiceBubble();
+    } else {
+      // Iniciar gravação
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          window.uiState.recording = true;
+          // Guardar a referência da stream para poder fechá-la depois
+          window.uiState.currentStream = stream;
+          
+          this.innerHTML = `
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+              <rect x="18" y="3" width="4" height="18"></rect>
+              <rect x="10" y="8" width="4" height="13"></rect>
+              <rect x="2" y="13" width="4" height="8"></rect>
+            </svg>
+            Gravando...
+          `;
+          
+          window.mediaRecorder = new MediaRecorder(stream);
+          window.audioChunks = [];
+          
+          window.mediaRecorder.addEventListener('dataavailable', event => {
+            window.audioChunks.push(event.data);
+          });
+          
+          window.mediaRecorder.addEventListener('stop', async () => {
+            window.ui.showNotification('Processando gravação...', 'info');
+            
+            const audioBlob = new Blob(window.audioChunks, { type: 'audio/webm' });
+            
+            try {
+              // Transcrever áudio
+              const text = await window.chat.transcribeAudio(audioBlob);
+              
+              if (text) {
+                messageInput.value = text;
+                messageInput.style.height = 'auto';
+                messageInput.style.height = (messageInput.scrollHeight) + 'px';
+                messageInput.focus();
+                window.ui.showNotification('Transcrição concluída!', 'success');
+              } else {
+                window.ui.showNotification('Não foi possível transcrever o áudio', 'error');
+              }
+            } catch (error) {
+              window.ui.showNotification('Erro ao processar o áudio: ' + error.message, 'error');
+            } finally {
+              // Parar de usar o microfone
+              if (window.uiState.currentStream) {
+                window.uiState.currentStream.getTracks().forEach(track => track.stop());
+                window.uiState.currentStream = null;
+              }
+            }
+          });
+          
+          // Definir um timeout de 60 segundos para a gravação
+          setTimeout(() => {
+            if (window.mediaRecorder && window.mediaRecorder.state === 'recording') {
+              window.ui.showNotification('Gravação finalizada (limite de 60s)', 'info');
+              window.mediaRecorder.stop();
+              window.uiState.recording = false;
+              this.innerHTML = `
+                <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                Whisper
+              `;
+              hideVoiceBubble();
+            }
+          }, 60000);
+          
+          window.mediaRecorder.start();
+          window.ui.showNotification('Gravação iniciada - fale agora', 'info');
+          showVoiceBubble();
+        })
+        .catch(err => {
+          console.error('Erro ao acessar o microfone:', err);
+          window.ui.showNotification('Não foi possível acessar o microfone', 'error');
+          window.uiState.recording = false;
+        });
     }
-  }
-  
-  // Event listeners
-  stopBtn.addEventListener('click', stopRecording);
-  cancelBtn.addEventListener('click', cancelRecording);
-  
-  // Modificar o comportamento do botão Whisper
-  const whisperBtn = document.getElementById('whisperBtn');
-  const originalWhisperClick = whisperBtn.onclick;
-  
-  whisperBtn.onclick = function(e) {
-    // Se não for removido e redefinido, os event listeners se acumularão
-    whisperBtn.onclick = null;
-    
-    const result = originalWhisperClick.call(this, e);
-    
-    // Re-atribuir event listener
-    setTimeout(() => {
-      whisperBtn.onclick = arguments.callee;
-      
-      // Se começou a gravar, mostrar bolha de voz
-      if (window.uiState.recording) {
-        showVoiceBubble();
-      } else {
-        hideVoiceBubble();
-      }
-    }, 100);
-    
-    return result;
-  };
+  });
 }
 
-// Inicializar interface de voz
-setupVoiceInterface();
 // Sistema de Tooltips
 function setupTooltips() {
   const tooltips = [
@@ -626,7 +664,5 @@ function setupTooltips() {
   }
 }
 
-// Inicializar tooltips
-setupTooltips();
-  
-}
+// Expor função de progresso globalmente
+window.ui.showProgress = showProgress;
