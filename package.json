@@ -7,9 +7,10 @@
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
-"dependencies": {
-  "openai": "^4.24.1",
-  "@anthropic-ai/sdk": "^0.10.0",
-  "formidable": "^2.1.2"
-}
+  "dependencies": {
+    "openai": "^4.24.1",
+    "@anthropic-ai/sdk": "^0.10.0",
+    "formidable": "^2.1.2",
+    "@vercel/ai": "^2.2.0"
+  }
 }
