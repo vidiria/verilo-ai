@@ -10,6 +10,7 @@
 "dependencies": {
   "openai": "^4.24.1",
   "@anthropic-ai/sdk": "^0.10.0",
-  "formidable": "^2.1.2"
+  "formidable": "^2.1.2",
+    "@vercel/ai": "^1.2.1"
 }
 }
