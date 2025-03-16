@@ -1424,4 +1424,118 @@ body::before {
 }
 }
 
+/* Estilos para o Modal de Gravação */
+.recording-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.recording-modal.active {
+  display: flex;
+}
+
+.recording-modal-content {
+  background-color: var(--dark-blue);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.recording-title {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.recording-animation {
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.recording-wave {
+  width: 5px;
+  height: 40px;
+  margin: 0 3px;
+  border-radius: 3px;
+  background-color: var(--accent-orange);
+  animation: wave 1s infinite ease-in-out alternate;
+}
+
+.recording-wave:nth-child(2) {
+  animation-delay: 0.2s;
+  height: 60px;
+}
+
+.recording-wave:nth-child(3) {
+  animation-delay: 0.4s;
+  height: 80px;
+}
+
+@keyframes wave {
+  0% { transform: scaleY(0.5); }
+  100% { transform: scaleY(1); }
+}
+
+.recording-timer {
+  color: white;
+  font-size: 28px;
+  font-weight: 500;
+  margin-bottom: 24px;
+}
+
+.recording-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.recording-controls button {
+  flex: 1;
+  padding: 12px 0;
+  border-radius: 8px;
+  border: none;
+  font-weight: 500;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.recording-stop-btn {
+  background-color: var(--accent-orange);
+  color: white;
+}
+
+.recording-stop-btn:hover {
+  background-color: #e05a35;
+}
+
+.recording-cancel-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.recording-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 
