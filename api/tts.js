@@ -1,19 +1,4 @@
-const { ElevenLabsVoiceService } = require('@vercel/ai');
-
-// Configurar cliente ElevenLabs
-const elevenLabsClient = new ElevenLabsVoiceService({
-  apiKey: process.env.ELEVENLABS_API_KEY,
-});
-
-// Mapeamento de vozes para o ElevenLabs
-const voiceMap = {
-  'alloy': 'premade/Adam', // Voz masculina neutra
-  'echo': 'premade/Antoni', // Voz masculina
-  'fable': 'premade/Bella', // Voz feminina
-  'onyx': 'premade/Josh', // Voz masculina grave
-  'nova': 'premade/Rachel', // Voz feminina suave
-  // Você pode adicionar mais opções conforme necessário
-};
+const { ElevenLabsStream } = require('ai');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -29,18 +14,23 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Texto não fornecido' });
     }
     
-    // Determinar a voz a ser usada (mapear do formato OpenAI para ElevenLabs)
+    // Mapeamento de vozes para o ElevenLabs
+    const voiceMap = {
+      'alloy': 'premade/Adam', 
+      'echo': 'premade/Antoni',
+      'fable': 'premade/Bella', 
+      'onyx': 'premade/Josh', 
+      'nova': 'premade/Rachel'
+    };
+    
     const elevenLabsVoice = voiceMap[voice] || 'premade/Adam';
     
-    // Modelo a ser usado (Multilingual é melhor para português)
-    const model = 'eleven_multilingual_v2';
-    
-    // Gerar áudio com ElevenLabs
-    const audioResponse = await elevenLabsClient.textToSpeech({
+    // Criar stream do ElevenLabs
+    const stream = await ElevenLabsStream({
       text: text,
       voice: elevenLabsVoice,
-      model: model,
-      output_format: 'mp3',
+      model: 'eleven_multilingual_v2',
+      apiKey: process.env.ELEVENLABS_API_KEY
     });
     
     // Configurar headers para streaming de áudio
@@ -48,12 +38,11 @@ module.exports = async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
     
     // Enviar stream de áudio para o cliente
-    audioResponse.pipe(res);
+    stream.pipe(res);
     
   } catch (error) {
     console.error('Erro ao gerar áudio:', error);
     
-    // Verificar se a resposta já foi enviada
     if (!res.headersSent) {
       res.status(500).json({ 
         error: 'Erro ao gerar áudio',
