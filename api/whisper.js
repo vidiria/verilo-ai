@@ -1,53 +1,87 @@
-const { OpenAI } = require('openai');
+const { OpenAIWhisperAudio } = require('@vercel/ai');
+const formidable = require('formidable');
 const fs = require('fs');
 const { promisify } = require('util');
-const writeFileAsync = promisify(fs.writeFile);
 const unlinkAsync = promisify(fs.unlink);
 
+// Configurar o cliente OpenAI Whisper da Vercel
+const whisperClient = new OpenAIWhisperAudio({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'whisper-large-v3', // Modelo otimizado para velocidade e precisão
+});
+
 module.exports = async (req, res) => {
+  // Verificar método
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  // Verificar se há um arquivo
-  if (!req.files || !req.files.file) {
-    return res.status(400).json({ error: 'Nenhum arquivo enviado' });
-  }
-
-  const file = req.files.file;
-  const tempFilePath = `/tmp/${Date.now()}_${file.name}`;
-
   try {
-    // Salvar o arquivo temporariamente
-    await writeFileAsync(tempFilePath, file.data);
-
-    // Inicializar a API da OpenAI
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-,
+    // Configurar formidable para processamento de arquivos
+    const form = new formidable.IncomingForm();
+    form.keepExtensions = true;
+    
+    // Processar o upload do arquivo
+    const [fields, files] = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) return reject(err);
+        resolve([fields, files]);
+      });
     });
 
-    // Transcrever o áudio
-    const response = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(tempFilePath),
-      model: 'whisper-1',
-      language: 'pt'
-    });
-
-    // Limpar o arquivo temporário
-    await unlinkAsync(tempFilePath);
-
-    return res.status(200).json({ text: response.text });
-  } catch (error) {
-    console.error('Erro ao transcrever áudio:', error);
-
-    // Tentar limpar o arquivo temporário
-    try {
-      await unlinkAsync(tempFilePath);
-    } catch (e) {
-      console.error('Erro ao remover arquivo temporário:', e);
+    // Verificar se há um arquivo de áudio
+    if (!files || !files.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo de áudio enviado' });
     }
 
-    return res.status(500).json({ error: error.message });
+    const audioFile = files.file;
+    const language = fields.language || 'pt';
+
+    // Ler o arquivo de áudio
+    const audioData = await fs.promises.readFile(audioFile.filepath);
+    
+    try {
+      // Transcrever o áudio usando Incredibly Fast Whisper
+      const transcription = await whisperClient.transcribe({
+        audio: audioData,
+        language: language,
+        response_format: 'json',
+      });
+
+      // Limpar arquivo temporário
+      if (audioFile.filepath) {
+        await unlinkAsync(audioFile.filepath).catch(err => 
+          console.error('Erro ao remover arquivo temporário:', err)
+        );
+      }
+
+      // Retornar resultado da transcrição
+      return res.status(200).json({ 
+        text: transcription.text,
+        language: transcription.language || language
+      });
+      
+    } catch (error) {
+      console.error('Erro na transcrição:', error);
+      
+      // Limpar arquivo temporário em caso de erro
+      if (audioFile.filepath) {
+        await unlinkAsync(audioFile.filepath).catch(err => 
+          console.error('Erro ao remover arquivo temporário:', err)
+        );
+      }
+      
+      return res.status(500).json({ 
+        error: 'Erro ao processar a transcrição do áudio',
+        details: error.message 
+      });
+    }
+    
+  } catch (error) {
+    console.error('Erro no processamento do upload:', error);
+    return res.status(500).json({ 
+      error: 'Erro ao processar o arquivo de áudio',
+      details: error.message 
+    });
   }
 };

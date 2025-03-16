@@ -25,6 +25,21 @@ async function sendMessage(userInput) {
   // Adicionar mensagem à lista
   chatState.messages.push(userMessage);
   
+  // Depois de "Adicionar mensagem à lista"
+chatState.messages.push(userMessage);
+
+// Mostrar indicador de progresso
+window.ui.showProgress(10, 'Enviando mensagem...');
+
+// E então depois de "Chamar a API", atualize o progresso
+window.ui.showProgress(30, 'Processando...');
+
+// Depois de receber a resposta
+window.ui.showProgress(90, 'Finalizando...');
+
+// E finalmente, antes de "Adicionar resposta do assistente"
+window.ui.showProgress(100, 'Concluído!');
+  
   // Limpar input
   document.getElementById('messageInput').value = '';
   document.getElementById('messageInput').style.height = 'auto';
@@ -118,9 +133,15 @@ async function sendMessage(userInput) {
 // Função para transcrever áudio
 async function transcribeAudio(audioBlob) {
   try {
+    // No início
+window.ui.showProgress(10, 'Preparando áudio...');
+
     // Criar FormData para enviar o arquivo
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.webm');
+    
+    // Depois de criar FormData
+window.ui.showProgress(30, 'Enviando áudio...');
     
     // Opcionalmente, especificar o idioma (padrão é pt)
     formData.append('language', 'pt');
@@ -130,11 +151,16 @@ async function transcribeAudio(audioBlob) {
       method: 'POST',
       body: formData
     });
+    // Depois de chamar API
+window.ui.showProgress(60, 'Transcrevendo...');
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error || `Erro ${response.status}: Falha na transcrição`);
     }
+    
+    // Antes de retornar
+window.ui.showProgress(100, 'Transcrição concluída!');
     
     const data = await response.json();
     return data.text;
