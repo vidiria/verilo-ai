@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
     if (model.includes('gpt')) {
       // API da OpenAI para modelos GPT
       const openai = new OpenAI({
-        apiKey: process.env.process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY
 ,
       });
       
@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
     } else if (model.includes('claude')) {
       // API da Anthropic para modelos Claude
       const anthropic = new Anthropic({
-        apiKey: process.env.process.env.ANTHROPIC_API_KEY,
+        apiKey: process.env.ANTHROPIC_API_KEY,
       });
       
       const requestOptions = {

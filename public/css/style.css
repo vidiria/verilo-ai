@@ -1126,3 +1126,83 @@ body {
 .message {
   animation: slideIn 0.3s ease;
 }
+
+/* Adicione estas classes ao final do seu arquivo CSS */
+
+/* Estilos para o seletor de vozes */
+.voice-selector {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  margin-right: 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.voice-selector:hover, 
+.voice-selector:focus {
+  border-color: var(--accent-orange);
+}
+
+/* Estilos para notificações */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+}
+
+.notification.info {
+  background-color: #2196F3;
+}
+
+.notification.success {
+  background-color: #4CAF50;
+}
+
+.notification.warning {
+  background-color: #FF9800;
+}
+
+.notification.error {
+  background-color: #F44336;
+}
+
+.notification.fade-out {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Melhorias responsivas */
+@media (max-width: 768px) {
+  .voice-selector {
+    display: none; /* Ocultar no mobile para economizar espaço */
+  }
+  
+  .message {
+    max-width: 95%;
+  }
+  
+  .message-actions {
+    opacity: 1; /* Sempre visível no mobile */
+  }
+}
