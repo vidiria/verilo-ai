@@ -1205,4 +1205,218 @@ body {
   .message-actions {
     opacity: 1; /* Sempre visível no mobile */
   }
+
+/* Indicadores de Status */
+.connection-status {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1000;
+  transition: opacity 0.5s ease;
 }
+
+.connection-status.online {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.connection-status.offline {
+  background-color: #F44336;
+  color: white;
+}
+
+.connection-status.fade-out {
+  opacity: 0;
+}
+
+.progress-overlay {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--dark-blue);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  z-index: 1000;
+}
+
+.progress-bar {
+  width: 100px;
+  height: 6px;
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--accent-orange);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+/* Voice Bubble Styles */
+.voice-bubble {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  opacity: 0;
+  background-color: var(--dark-blue);
+  border-radius: 24px;
+  padding: 20px;
+  width: 240px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.voice-bubble.active {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+  pointer-events: all;
+}
+
+.voice-animation {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 60px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.voice-bar {
+  width: 10px;
+  height: 20px;
+  background-color: var(--accent-orange);
+  border-radius: 2px;
+  animation: voice-animation 0.5s infinite alternate;
+}
+
+.voice-bar:nth-child(2) { animation-delay: 0.1s; }
+.voice-bar:nth-child(3) { animation-delay: 0.2s; }
+.voice-bar:nth-child(4) { animation-delay: 0.3s; }
+
+@keyframes voice-animation {
+  0% { height: 10px; }
+  100% { height: 40px; }
+}
+
+.voice-timer {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 500;
+  color: white;
+  margin-bottom: 16px;
+}
+
+.voice-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.voice-controls button {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 16px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.voice-stop-btn {
+  background-color: var(--accent-orange);
+  color: white;
+}
+
+.voice-cancel-btn {
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+}
+/* Tooltip Styles */
+.tooltip-container {
+  position: fixed;
+  background-color: var(--dark-blue);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  max-width: 250px;
+  text-align: center;
+  z-index: 1000;
+  transform: translateX(-50%) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.tooltip-container.visible {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.tooltip-container.top:after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px 6px 0;
+  border-style: solid;
+  border-color: var(--dark-blue) transparent transparent;
+}
+
+.tooltip-container.bottom:after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 6px 6px;
+  border-style: solid;
+  border-color: transparent transparent var(--dark-blue);
+}
+/* Brand reinforcement */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('../img/pattern.svg');
+  background-size: 200px;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Soft transitions */
+.message, .conversation-item, .message-bubble, button, .tool-button {
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+}
+
+/* Pulse animation for logo */
+.logo {
+  animation: pulse 8s infinite alternate;
+}
+
+@keyframes pulse {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.1); }
+  100% { filter: brightness(1); }
+}
+}
+
+
