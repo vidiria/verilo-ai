@@ -6,22 +6,27 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { text } = req.body;
+    const { text, voice = "alloy" } = req.body;
     
     // Validações básicas
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: 'Texto não fornecido' });
     }
     
+    // Validar a voz selecionada
+    const validVoices = ["alloy", "echo", "fable", "onyx", "nova"];
+    if (!validVoices.includes(voice)) {
+      return res.status(400).json({ error: 'Voz inválida' });
+    }
+    
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-,
+      apiKey: process.env.OPENAI_API_KEY, // Corrigir a chave da API
     });
     
-    // Gerar áudio
+    // Gerar áudio com a voz selecionada
     const mp3 = await openai.audio.speech.create({
       model: "tts-1",
-      voice: "alloy",
+      voice: voice,
       input: text
     });
     
