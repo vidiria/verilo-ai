@@ -4,7 +4,8 @@
 const chatState = {
   messages: [],
   streaming: false,
-  conversationId: null
+  conversationId: null,
+  audioPlaying: false
 };
 
 // Enviar mensagem
@@ -28,6 +29,11 @@ async function sendMessage(userInput) {
   document.getElementById('messageInput').value = '';
   document.getElementById('messageInput').style.height = 'auto';
   
+  // Limpar anexos após envio
+  if (window.uiState.attachments.length > 0) {
+    document.getElementById('attachmentsArea').innerHTML = '';
+  }
+  
   // Indicar que está digitando
   chatState.streaming = true;
   const loadingIndicator = addTypingIndicator();
@@ -46,8 +52,15 @@ async function sendMessage(userInput) {
     
     // Adicionar anexos se houver
     if (window.uiState.attachments.length > 0) {
+      // Aqui você deve implementar a lógica para enviar os anexos
+      // Para a API Vercel, isso geralmente envolve upload para um serviço como S3 ou similar
       requestData.attachments = window.uiState.attachments;
+      
+      // Limpar anexos depois de usá-los
+      window.uiState.attachments = [];
     }
+    
+    window.ui.showNotification('Enviando mensagem...', 'info');
     
     // Chamar a API
     const response = await fetch('/api/chat', {
@@ -59,7 +72,8 @@ async function sendMessage(userInput) {
     });
     
     if (!response.ok) {
-      throw new Error('Erro ao comunicar com a API');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na comunicação com a API`);
     }
     
     const data = await response.json();
@@ -86,7 +100,10 @@ async function sendMessage(userInput) {
     loadingIndicator.remove();
     chatState.streaming = false;
     
-    // Exibir erro
+    console.error('Erro na comunicação com a API:', error);
+    window.ui.showNotification(`Erro: ${error.message}`, 'error');
+    
+    // Exibir erro como mensagem do assistente
     const errorMessage = {
       id: generateId(),
       role: 'assistant',
@@ -105,6 +122,9 @@ async function transcribeAudio(audioBlob) {
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.webm');
     
+    // Opcionalmente, especificar o idioma (padrão é pt)
+    formData.append('language', 'pt');
+    
     // Chamar API Whisper
     const response = await fetch('/api/whisper', {
       method: 'POST',
@@ -112,7 +132,8 @@ async function transcribeAudio(audioBlob) {
     });
     
     if (!response.ok) {
-      throw new Error('Erro ao transcrever áudio');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na transcrição`);
     }
     
     const data = await response.json();
@@ -120,35 +141,63 @@ async function transcribeAudio(audioBlob) {
     
   } catch (error) {
     console.error('Erro na transcrição:', error);
+    window.ui.showNotification('Erro na transcrição: ' + error.message, 'error');
     return null;
   }
 }
 
 // Função para sintetizar voz
-async function textToSpeech(text, messageId) {
+async function textToSpeech(text, voice = 'alloy') {
   try {
+    // Evitar múltiplas reproduções simultâneas
+    if (chatState.audioPlaying) {
+      window.ui.showNotification('Já existe um áudio em reprodução', 'warning');
+      return;
+    }
+    
+    chatState.audioPlaying = true;
+    
     // Chamar API TTS
     const response = await fetch('/api/tts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ 
+        text,
+        voice  // Passar a voz selecionada
+      })
     });
     
     if (!response.ok) {
-      throw new Error('Erro ao sintetizar voz');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na síntese de voz`);
     }
     
     // Reproduzir áudio
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    
+    audio.addEventListener('ended', () => {
+      URL.revokeObjectURL(audioUrl); // Liberar memória
+      chatState.audioPlaying = false;
+    });
+    
+    audio.addEventListener('error', () => {
+      URL.revokeObjectURL(audioUrl);
+      chatState.audioPlaying = false;
+      window.ui.showNotification('Erro ao reproduzir o áudio', 'error');
+    });
+    
     await audio.play();
+    return true;
     
   } catch (error) {
     console.error('Erro na síntese de voz:', error);
-    alert('Não foi possível reproduzir o áudio.');
+    window.ui.showNotification('Erro na síntese de voz: ' + error.message, 'error');
+    chatState.audioPlaying = false;
+    return false;
   }
 }
 
@@ -225,7 +274,12 @@ function saveConversation() {
   }
   
   // Salvar conversas no localStorage
-  localStorage.setItem('verilo_conversations', JSON.stringify(conversations));
+  try {
+    localStorage.setItem('verilo_conversations', JSON.stringify(conversations));
+  } catch (error) {
+    console.error('Erro ao salvar conversa:', error);
+    window.ui.showNotification('Não foi possível salvar a conversa: armazenamento cheio', 'warning');
+  }
   
   // Atualizar lista de conversas na UI
   window.ui.loadConversations();
@@ -246,7 +300,14 @@ function addToPenseira(memory) {
   }
   
   // Salvar no localStorage
-  localStorage.setItem('verilo_penseira', JSON.stringify(memories));
+  try {
+    localStorage.setItem('verilo_penseira', JSON.stringify(memories));
+    return true;
+  } catch (error) {
+    console.error('Erro ao salvar na Penseira:', error);
+    window.ui.showNotification('Não foi possível salvar na Penseira: armazenamento cheio', 'warning');
+    return false;
+  }
 }
 
 // Exportar funções
