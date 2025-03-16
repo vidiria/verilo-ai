@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
     }
     
     const openai = new OpenAI({
-      apiKey: process.env.sk-process.env.OPENAI_API_KEY
+      apiKey: process.env.OPENAI_API_KEY
 ,
     });
     
