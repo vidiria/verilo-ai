@@ -82,3 +82,42 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// Função para transcrever áudio usando SeamlessM4T no Replicate
+async function transcribeAudio(audioBlob) {
+  try {
+    window.ui.showProgress(10, 'Preparando áudio...');
+
+    // Criar FormData para enviar o arquivo
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+    
+    window.ui.showProgress(30, 'Enviando áudio...');
+    
+    // Chamar API de transcrição (SeamlessM4T)
+    const response = await fetch('/api/whisper', {
+      method: 'POST',
+      body: formData
+    });
+    
+    window.ui.showProgress(60, 'Transcrevendo...');
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na transcrição`);
+    }
+    
+    window.ui.showProgress(100, 'Transcrição concluída!');
+    
+    const data = await response.json();
+    return data.text;
+    
+  } catch (error) {
+    console.error('Erro na transcrição:', error);
+    window.ui.showNotification('Erro na transcrição: ' + error.message, 'error');
+    return null;
+  }
+}
+
+// Certifique-se de que esta função esteja exportada
+window.chat.transcribeAudio = transcribeAudio;
