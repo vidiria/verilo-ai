@@ -375,121 +375,77 @@ function showProgress(percent, message) {
   }
 }
 
-// Interface de Voz - VERSÃO CORRIGIDA
+// Interface de Gravação Modal
 function setupVoiceInterface() {
-  // Verificar se o elemento já existe
-  let voiceBubble = document.getElementById('voiceBubble');
-  
-  // Se não existir, criar o elemento
-  if (!voiceBubble) {
-    voiceBubble = document.createElement('div');
-    voiceBubble.id = 'voiceBubble';
-    voiceBubble.className = 'voice-bubble';
-    voiceBubble.innerHTML = `
-      <div class="voice-animation">
-        <div class="voice-bar"></div>
-        <div class="voice-bar"></div>
-        <div class="voice-bar"></div>
-        <div class="voice-bar"></div>
-      </div>
-      <div class="voice-timer">0:00</div>
-      <div class="voice-controls">
-        <button class="voice-stop-btn">Concluir</button>
-        <button class="voice-cancel-btn">Cancelar</button>
-      </div>
-    `;
-    document.body.appendChild(voiceBubble);
-  }
-  
-  // Ocultar o voice bubble na inicialização
-  voiceBubble.style.display = 'none';
-  
-  // Obter elementos dentro do voice bubble
-  const voiceTimer = voiceBubble.querySelector('.voice-timer');
-  const stopBtn = voiceBubble.querySelector('.voice-stop-btn');
-  const cancelBtn = voiceBubble.querySelector('.voice-cancel-btn');
+  const recordingModal = document.getElementById('recordingModal');
+  const timer = recordingModal.querySelector('.recording-timer');
+  const stopBtn = document.getElementById('recordingStopBtn');
+  const cancelBtn = document.getElementById('recordingCancelBtn');
   let timerInterval;
   let seconds = 0;
   
-  // Funções da interface de voz
-  function showVoiceBubble() {
-    voiceBubble.style.display = 'block';
-    setTimeout(() => {
-      voiceBubble.classList.add('active');
-    }, 10);
-    
-    // Reset timer
+  function showModal() {
+    recordingModal.classList.add('active');
     seconds = 0;
     updateTimer();
     
-    // Start timer
     timerInterval = setInterval(() => {
       seconds++;
       updateTimer();
-      // Auto-stop after 60 seconds
       if (seconds >= 60) stopRecording();
     }, 1000);
   }
   
-  function hideVoiceBubble() {
-    voiceBubble.classList.remove('active');
+  function hideModal() {
+    recordingModal.classList.remove('active');
     clearInterval(timerInterval);
-    setTimeout(() => {
-      voiceBubble.style.display = 'none';
-    }, 300);
   }
   
   function updateTimer() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    voiceTimer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
   }
   
   function stopRecording() {
-    hideVoiceBubble();
-    // Trigger the existing stop recording logic
-    if (window.uiState.recording) {
-      if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
-        window.mediaRecorder.stop();
-      }
-      window.uiState.recording = false;
-      
-      const whisperBtn = document.getElementById('whisperBtn');
-      if (whisperBtn) {
-        whisperBtn.innerHTML = `
-          <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-          Whisper
-        `;
-      }
+    hideModal();
+    if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
+      window.mediaRecorder.stop();
+    }
+    window.uiState.recording = false;
+    
+    const whisperBtn = document.getElementById('whisperBtn');
+    if (whisperBtn) {
+      whisperBtn.innerHTML = `
+        <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        Whisper
+      `;
     }
   }
   
   function cancelRecording() {
-    hideVoiceBubble();
-    // Add logic to cancel recording
-    if (window.uiState.recording && window.uiState.currentStream) {
+    hideModal();
+    if (window.uiState.currentStream) {
       window.uiState.currentStream.getTracks().forEach(track => track.stop());
-      window.uiState.recording = false;
-      window.uiState.currentStream = null;
-      
-      // Resetar o botão Whisper
-      const whisperBtn = document.getElementById('whisperBtn');
-      if (whisperBtn) {
-        whisperBtn.innerHTML = `
-          <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-          Whisper
-        `;
-      }
+    }
+    window.uiState.recording = false;
+    
+    const whisperBtn = document.getElementById('whisperBtn');
+    if (whisperBtn) {
+      whisperBtn.innerHTML = `
+        <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        Whisper
+      `;
     }
   }
   
@@ -501,9 +457,6 @@ function setupVoiceInterface() {
   const whisperBtn = document.getElementById('whisperBtn');
   if (!whisperBtn) return;
   
-  // Armazenar o click handler original para não perder funcionalidade
-  const originalOnclick = whisperBtn.onclick;
-  
   // Remover handler antigo se existir
   whisperBtn.onclick = null;
   
@@ -511,20 +464,7 @@ function setupVoiceInterface() {
   whisperBtn.addEventListener('click', function() {
     if (window.uiState.recording) {
       // Parar gravação
-      if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
-        window.mediaRecorder.stop();
-      }
-      window.uiState.recording = false;
-      this.innerHTML = `
-        <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-          <line x1="12" y1="19" x2="12" y2="23"></line>
-          <line x1="8" y1="23" x2="16" y2="23"></line>
-        </svg>
-        Whisper
-      `;
-      hideVoiceBubble();
+      stopRecording();
     } else {
       // Iniciar gravação
       navigator.mediaDevices.getUserMedia({ audio: true })
@@ -559,6 +499,7 @@ function setupVoiceInterface() {
               const text = await window.chat.transcribeAudio(audioBlob);
               
               if (text) {
+                const messageInput = document.getElementById('messageInput');
                 messageInput.value = text;
                 messageInput.style.height = 'auto';
                 messageInput.style.height = (messageInput.scrollHeight) + 'px';
@@ -568,6 +509,7 @@ function setupVoiceInterface() {
                 window.ui.showNotification('Não foi possível transcrever o áudio', 'error');
               }
             } catch (error) {
+              console.error('Erro ao processar o áudio:', error);
               window.ui.showNotification('Erro ao processar o áudio: ' + error.message, 'error');
             } finally {
               // Parar de usar o microfone
@@ -578,28 +520,17 @@ function setupVoiceInterface() {
             }
           });
           
-          // Definir um timeout de 60 segundos para a gravação
+          // Timeout de 60 segundos
           setTimeout(() => {
             if (window.mediaRecorder && window.mediaRecorder.state === 'recording') {
               window.ui.showNotification('Gravação finalizada (limite de 60s)', 'info');
-              window.mediaRecorder.stop();
-              window.uiState.recording = false;
-              this.innerHTML = `
-                <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                  <line x1="12" y1="19" x2="12" y2="23"></line>
-                  <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-                Whisper
-              `;
-              hideVoiceBubble();
+              stopRecording();
             }
           }, 60000);
           
           window.mediaRecorder.start();
           window.ui.showNotification('Gravação iniciada - fale agora', 'info');
-          showVoiceBubble();
+          showModal();
         })
         .catch(err => {
           console.error('Erro ao acessar o microfone:', err);
