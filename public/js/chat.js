@@ -1,3 +1,5 @@
+// chat.js - Lida com a comunicação com as APIs de IA
+
 // Estado do chat
 const chatState = {
   messages: [],
@@ -6,109 +8,148 @@ const chatState = {
   audioPlaying: false
 };
 
+// Enviar mensagem
 async function sendMessage(userInput) {
+  // Evitar enviar mensagem vazia
   if (!userInput.trim()) return;
 
-  const userMessage = { id: generateId(), role: 'user', content: userInput };
+  // Adicionar mensagem do usuário à UI
+  const userMessage = {
+    id: generateId(),
+    role: 'user',
+    content: userInput
+  };
+
   window.ui.addUserMessage(userMessage);
+
+  // Adicionar mensagem à lista
   chatState.messages.push(userMessage);
 
+  // Mostrar indicador de progresso
   window.ui.showProgress(10, 'Enviando mensagem...');
+
+  // Limpar input
   document.getElementById('messageInput').value = '';
   document.getElementById('messageInput').style.height = 'auto';
-  document.getElementById('attachmentsArea').innerHTML = '';
 
+  // Limpar anexos após envio
+  if (window.uiState.attachments.length > 0) {
+    document.getElementById('attachmentsArea').innerHTML = '';
+  }
+
+  // Indicar que está digitando
   chatState.streaming = true;
   const loadingIndicator = addTypingIndicator();
 
   try {
+    // Chamar API (somente Claude agora)
     const model = window.uiState.activeModel;
     const advanced = window.uiState.advancedMode;
-    const requestData = { model, messages: chatState.messages, advanced };
 
+    // Configurar parâmetros para a chamada
+    const requestData = {
+      model,
+      messages: chatState.messages,
+      advanced
+    };
+
+    // Adicionar anexos se houver
     if (window.uiState.attachments.length > 0) {
       requestData.attachments = window.uiState.attachments;
+
+      // Limpar anexos depois de usá-los
       window.uiState.attachments = [];
     }
 
     window.ui.showProgress(30, 'Processando...');
-    let response;
+    window.ui.showNotification('Enviando mensagem...', 'info');
 
-    if (model === 'grok-3') {
-      response = await fetch('/api/grok', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      });
-    } else {
-      response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      });
+    // Chamar a API
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na comunicação com a API`);
     }
 
-    if (!response.ok) throw new Error(`Erro ${response.status}`);
     window.ui.showProgress(90, 'Finalizando...');
+
     const data = await response.json();
 
+    // Remover indicador de digitação
     loadingIndicator.remove();
     chatState.streaming = false;
 
-    const assistantMessage = { id: data.id || generateId(), role: 'assistant', content: data.content };
+    // Adicionar resposta do assistente
+    const assistantMessage = {
+      id: data.id || generateId(),
+      role: 'assistant',
+      content: data.content
+    };
+
     chatState.messages.push(assistantMessage);
     window.ui.addAssistantMessage(assistantMessage);
 
+    // Salvar conversa
     saveConversation();
+
     window.ui.showProgress(100, 'Concluído!');
+
   } catch (error) {
+    // Remover indicador de digitação
     loadingIndicator.remove();
     chatState.streaming = false;
-    console.error('Erro:', error);
+
+    console.error('Erro na comunicação com a API:', error);
     window.ui.showNotification(`Erro: ${error.message}`, 'error');
-    const errorMessage = { id: generateId(), role: 'assistant', content: `Erro: ${error.message}` };
+
+    // Exibir erro como mensagem do assistente
+    const errorMessage = {
+      id: generateId(),
+      role: 'assistant',
+      content: `Desculpe, ocorreu um erro ao processar sua mensagem: ${error.message}`
+    };
+
     chatState.messages.push(errorMessage);
     window.ui.addAssistantMessage(errorMessage);
   }
 }
 
+// Função para transcrever áudio usando SeamlessM4T no Replicate
 async function transcribeAudio(audioBlob) {
   try {
     window.ui.showProgress(10, 'Preparando áudio...');
+
+    // Criar FormData para enviar o arquivo
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.webm');
 
-    let transcription;
-    const model = window.uiState.activeModel;
+    window.ui.showProgress(30, 'Enviando áudio...');
 
-    if (model === 'grok-3') {
-      window.ui.showProgress(30, 'Enviando para Grok...');
-      const response = await fetch('/api/grok/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      if (!response.ok) throw new Error('Erro na transcrição com Grok');
-      const data = await response.json();
-      transcription = data.text;
-    } else {
-      window.ui.showProgress(30, 'Enviando para Replicate...');
-      const response = await fetch('/api/whisper', {
-        method: 'POST',
-        body: formData
-      });
-      if (!response.ok) throw new Error('Erro na transcrição com Replicate');
-      const data = await response.json();
-      transcription = data.text;
+    // Chamar API de transcrição (SeamlessM4T via Replicate)
+    const response = await fetch('/api/whisper', {
+      method: 'POST',
+      body: formData
+    });
+
+    window.ui.showProgress(60, 'Transcrevendo...');
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na transcrição`);
     }
 
-    window.ui.showProgress(60, 'Formatando VINTRA...');
-    const formattedTranscription = formatToVINTRA(transcription);
+    window.ui.showProgress(100, 'Transcrição concluída!');
 
-    window.ui.showProgress(80, 'Processando com Grok...');
-    const processedText = await sendToGrok3(formattedTranscription);
+    const data = await response.json();
+    return data.text;
 
-    window.ui.showProgress(100, 'Concluído!');
-    return processedText;
   } catch (error) {
     console.error('Erro na transcrição:', error);
     window.ui.showNotification('Erro na transcrição: ' + error.message, 'error');
@@ -116,44 +157,41 @@ async function transcribeAudio(audioBlob) {
   }
 }
 
-function formatToVINTRA(transcription) {
-  const timestamp = new Date().toLocaleTimeString();
-  return `[${timestamp}] VINTRA: ${transcription}`; // Ajuste conforme o framework VINTRA real
-}
-
-async function sendToGrok3(formattedTranscription) {
-  const response = await fetch('/api/grok', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: formattedTranscription }] })
-  });
-  if (!response.ok) throw new Error('Erro ao processar com Grok');
-  const data = await response.json();
-  return data.content;
-}
-
+// Função para sintetizar voz usando ElevenLabs
 async function textToSpeech(text, voice = 'nova') {
   try {
+    // Evitar múltiplas reproduções simultâneas
     if (chatState.audioPlaying) {
       window.ui.showNotification('Já existe um áudio em reprodução', 'warning');
       return;
     }
+
     chatState.audioPlaying = true;
 
+    // Chamar API TTS
     const response = await fetch('/api/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice })
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text,
+        voice
+      })
     });
 
-    if (!response.ok) throw new Error('Erro na síntese de voz');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erro ${response.status}: Falha na síntese de voz`);
+    }
 
+    // Reproduzir áudio
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
 
     audio.addEventListener('ended', () => {
-      URL.revokeObjectURL(audioUrl);
+      URL.revokeObjectURL(audioUrl); // Liberar memória
       chatState.audioPlaying = false;
     });
 
@@ -165,6 +203,7 @@ async function textToSpeech(text, voice = 'nova') {
 
     await audio.play();
     return true;
+
   } catch (error) {
     console.error('Erro na síntese de voz:', error);
     window.ui.showNotification('Erro na síntese de voz: ' + error.message, 'error');
@@ -173,6 +212,7 @@ async function textToSpeech(text, voice = 'nova') {
   }
 }
 
+// Funções auxiliares
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
@@ -197,6 +237,7 @@ function addTypingIndicator() {
       </div>
     </div>
   `;
+
   document.getElementById('messagesContainer').appendChild(indicator);
   scrollToBottom();
   return indicator;
@@ -208,18 +249,24 @@ function scrollToBottom() {
 }
 
 function saveConversation() {
-  if (chatState.messages.length < 2) return;
+  if (chatState.messages.length < 2) return; // Não salvar conversa vazia
 
+  // Determinar ID da conversa
   const conversationId = chatState.conversationId || generateId();
   chatState.conversationId = conversationId;
 
+  // Obter conversas existentes
   const conversations = JSON.parse(localStorage.getItem('verilo_conversations')) || [];
+
+  // Encontrar conversa existente ou criar nova
   const existingIndex = conversations.findIndex(c => c.id === conversationId);
 
+  // Determinar título da conversa (primeiros 30 caracteres da primeira mensagem)
   const title = chatState.messages[0].content.substring(0, 30) + (chatState.messages[0].content.length > 30 ? '...' : '');
+
   const conversation = {
     id: conversationId,
-    title,
+    title: title,
     date: window.ui.getCurrentTime(),
     model: document.getElementById('currentModel').textContent,
     modelId: window.uiState.activeModel,
@@ -232,8 +279,12 @@ function saveConversation() {
     conversations.unshift(conversation);
   }
 
-  if (conversations.length > 100) conversations.pop();
+  // Limitar a 100 conversas
+  if (conversations.length > 100) {
+    conversations.pop();
+  }
 
+  // Salvar conversas no localStorage
   try {
     localStorage.setItem('verilo_conversations', JSON.stringify(conversations));
   } catch (error) {
@@ -241,11 +292,16 @@ function saveConversation() {
     window.ui.showNotification('Não foi possível salvar a conversa: armazenamento cheio', 'warning');
   }
 
+  // Atualizar lista de conversas na UI
   window.ui.loadConversations();
 }
 
+// Adicionar memória à Penseira
 function addToPenseira(memory) {
+  // Obter memórias existentes
   const memories = JSON.parse(localStorage.getItem('verilo_penseira')) || [];
+
+  // Verificar se já existe uma memória com o mesmo título
   const existingIndex = memories.findIndex(m => m.title === memory.title);
 
   if (existingIndex >= 0) {
@@ -254,6 +310,7 @@ function addToPenseira(memory) {
     memories.push(memory);
   }
 
+  // Salvar no localStorage
   try {
     localStorage.setItem('verilo_penseira', JSON.stringify(memories));
     return true;
@@ -264,9 +321,12 @@ function addToPenseira(memory) {
   }
 }
 
+// Exportar funções
 window.chat = {
   sendMessage,
   transcribeAudio,
   textToSpeech,
   addToPenseira
 };
+
+
