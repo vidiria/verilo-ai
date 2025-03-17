@@ -1,8 +1,4 @@
 {
-//================================================================================
-//                              package.json
-//================================================================================
-{
   "name": "verilo",
   "version": "0.1.0",
   "description": "Assistente de IA Verilo - Interface unificada para Claude e Grok",
