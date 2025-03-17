@@ -12,6 +12,5 @@
     "formidable": "^2.1.2",
     "node-fetch": "^2.6.7",
     "replicate": "^0.25.2",
-    "xai-sdk": "^1.0.0" // Mantive, mesmo que não seja usado diretamente no front-end
   }
 }
