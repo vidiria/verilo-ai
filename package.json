@@ -1,6 +1,6 @@
 {
   "name": "verilo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Assistente de IA Verilo - Interface unificada para Claude e Grok",
   "scripts": {
     "dev": "vercel dev",
@@ -11,6 +11,6 @@
     "ai": "^2.2.31",
     "formidable": "^2.1.2",
     "node-fetch": "^2.6.7",
-    "replicate": "^0.25.2",
+    "replicate": "^0.25.2"
     }
 }
