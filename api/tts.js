@@ -1,53 +1,51 @@
-const { ElevenLabsStream } = require('ai');
+// api/tts.js
+import fetch from 'node-fetch';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' });
+    return res.status(405).end('Method Not Allowed');
+  }
+
+  const { text, voice = 'nova' } = req.body;  //O 'voice' default é 'nova'
+
+  if (!text) {
+    return res.status(400).json({ error: 'Text is required' });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'OpenAI API key not configured' });
   }
 
   try {
-    // Extrair parâmetros do corpo da requisição
-    const { text, voice = 'alloy' } = req.body;
-    
-    // Validar entrada
-    if (!text || text.trim().length === 0) {
-      return res.status(400).json({ error: 'Texto não fornecido' });
-    }
-    
-    // Mapeamento de vozes para o ElevenLabs
-    const voiceMap = {
-      'alloy': 'premade/Adam', 
-      'echo': 'premade/Antoni',
-      'fable': 'premade/Bella', 
-      'onyx': 'premade/Josh', 
-      'nova': 'premade/Rachel'
-    };
-    
-    const elevenLabsVoice = voiceMap[voice] || 'premade/Adam';
-    
-    // Criar stream do ElevenLabs
-    const stream = await ElevenLabsStream({
-      text: text,
-      voice: elevenLabsVoice,
-      model: 'eleven_multilingual_v2',
-      apiKey: process.env.ELEVENLABS_API_KEY
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1', // Modelo de alta qualidade.
+        input: text,
+        voice: voice,
+        response_format: 'mp3', // Formato de saída.
+      }),
     });
-    
-    // Configurar headers para streaming de áudio
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("TTS API Error:", errorData);
+      throw new Error(`TTS API Error: ${response.status} - ${errorData.error.message || "Unknown error"}`);
+    }
+
+      // Stream the response directly.  (Para Vercel Edge Functions)
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Transfer-Encoding', 'chunked');
-    
-    // Enviar stream de áudio para o cliente
-    stream.pipe(res);
-    
+    response.body.pipe(res);
+
+
   } catch (error) {
-    console.error('Erro ao gerar áudio:', error);
-    
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Erro ao gerar áudio',
-        details: error.message
-      });
-    }
+    console.error('Error in TTS API call:', error);
+     res.status(500).json({ error: 'Failed to process TTS', details: error.message });
   }
-};
+}
