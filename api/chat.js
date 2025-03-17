@@ -1,285 +1,185 @@
-// Estado do chat
-const chatState = {
-  messages: [],
-  streaming: false,
-  conversationId: null,
-  audioPlaying: false
-};
+import { Anthropic } from "@anthropic-ai/sdk";
+import { HfInference } from '@huggingface/inference';  // Importe o Hugging Face
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { streamToResponse } from 'ai';
 
-// Enviar mensagem
-async function sendMessage(userInput) {
-  if (!userInput.trim()) return;
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
-  const userMessage = { id: generateId(), role: 'user', content: userInput };
-  window.ui.addUserMessage(userMessage);
-  chatState.messages.push(userMessage);
+const hf = new HfInference(process.env.HF_API_TOKEN);
 
-  window.ui.showProgress(10, 'Enviando mensagem...');
-  document.getElementById('messageInput').value = '';
-  document.getElementById('messageInput').style.height = 'auto';
-  document.getElementById('attachmentsArea').innerHTML = '';
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-  chatState.streaming = true;
-  const loadingIndicator = addTypingIndicator();
 
-  try {
-    const model = window.uiState.activeModel;
-    const advanced = window.uiState.advancedMode;
-    const requestData = { model, messages: chatState.messages, advanced };
 
-    if (window.uiState.attachments.length > 0) {
-      requestData.attachments = window.uiState.attachments;
-      window.uiState.attachments = [];
+export default async function handler(req, res) {
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  const { messages, attachments, model, extended } = req.body;
+
+    if (!messages) {
+        return res.status(400).json({ error: 'Missing messages' });
     }
 
-    window.ui.showProgress(30, 'Processando...');
+
+  // Escolha do modelo e preparação da mensagem
+  try {
     let response;
+      switch (model) {
+        case 'claude-3-opus':
+        case 'claude-3-sonnet':
+        case 'claude-3-haiku':
+              const claudeModel = model.startsWith('claude-3') ? model : 'claude-3-opus'; //Default
+              response = await anthropic.messages.create({
+                model: claudeModel,
+                messages: buildClaudeMessages(messages, attachments, extended),
+                max_tokens: extended ? 8192 : 4096,
+                stream: true
+              });
+               return streamToResponse(response, res); //Para streaming da resposta
 
-    if (model === 'grok-3') {
-      response = await fetch('/api/grok', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
+
+        case 'grok-1':
+            // Preparando prompt para o Grok
+            const grokPrompt = buildGrokPrompt(messages, attachments, extended);
+            const grokResult = await hf.textGenerationStream({
+                model: 'xai-org/grok-1',
+                inputs: grokPrompt,
+                parameters: {
+                    max_new_tokens: extended ? 8192 : 4096, // ajuste conforme necessário
+                    temperature: 0.7,
+                    repetition_penalty: 1.0,
+                    return_full_text: false,
+                }
+            });
+             return streamToResponse(grokResult, res);
+
+
+          case 'gemini-1.5-pro': // Gemini
+              const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+              const geminiPrompt = buildGeminiPrompt(messages, attachments, extended);
+
+              //Inicia o chat com o histórico de mensagens.
+              const chat = geminiModel.startChat({
+                history: geminiPrompt,
+                generationConfig: {
+                      maxOutputTokens: extended ? 8192 : 4096, // Controla o tamanho máximo da resposta
+                }
+              });
+
+              //Envia a última mensagem do usuário (que já está no histórico).
+              const userMessage = messages[messages.length - 1].content;
+              const result = await chat.sendMessageStream(userMessage);
+               return streamToResponse(result.stream, res);
+
+        default:
+          return res.status(400).json({ error: 'Invalid model' });
+      }
+
+  } catch (error) {
+    console.error("Error in API:", error);
+    return res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+}
+
+// Funções de formatação de mensagens para diferentes modelos
+
+function buildClaudeMessages(messages, attachments, extended) {
+    const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+    }));
+
+    if (attachments && attachments.length > 0) {
+      const attachmentContent = attachments.map(att => {
+        if (att.type.startsWith('image/')) {
+          return {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: att.type,
+              data: att.url.split(',')[1], // Assume base64 URL
+            },
+          };
+        } else {
+            return {
+              type: 'text',
+              text: `Anexo: <span class="math-inline">\{att\.name\} \(</span>{att.type}) - URL: ${att.url}`
+            }
+        }
+
       });
-    } else {
-      response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      });
+      //Adiciona os anexos ao ÚLTIMO conteúdo do usuário.
+        const lastUserMessage = formattedMessages.slice().reverse().find(msg => msg.role === 'user');
+        if (lastUserMessage) {
+            if(typeof lastUserMessage.content === 'string'){
+                lastUserMessage.content = [{ type: 'text', text: lastUserMessage.content }]
+            }
+            lastUserMessage.content.push(...attachmentContent);
+        }
+    }
+  return formattedMessages;
+}
+
+
+
+function buildGrokPrompt(messages, attachments, extended) {
+  // Concatena mensagens em um único prompt.  O Grok não tem um conceito formal de "mensagens" como a API da OpenAI.
+  let prompt = "";
+  for (const msg of messages) {
+    prompt += `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}\n`;
+  }
+
+  if (attachments && attachments.length > 0) {
+    prompt += "Anexos:\n";
+    for (const att of attachments) {
+      prompt += `- <span class="math-inline">\{att\.name\} \(</span>{att.type}): ${att.url}\n`;
+    }
+  }
+
+  // Adiciona instruções para o Grok (opcional, mas recomendado)
+    prompt += "Assistente, responda de forma concisa e útil, considerando o contexto e os anexos fornecidos.";
+    if(extended) {
+        prompt += " Use pensamento extendido se necessário."
     }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Erro ${response.status}`);
-    }
-
-    window.ui.showProgress(90, 'Finalizando...');
-    const data = await response.json();
-
-    loadingIndicator.remove();
-    chatState.streaming = false;
-
-    const assistantMessage = { id: data.id || generateId(), role: 'assistant', content: data.content };
-    chatState.messages.push(assistantMessage);
-    window.ui.addAssistantMessage(assistantMessage);
-
-    saveConversation();
-    window.ui.showProgress(100, 'Concluído!');
-  } catch (error) {
-    loadingIndicator.remove();
-    chatState.streaming = false;
-    console.error('Erro:', error);
-    window.ui.showNotification(`Erro: ${error.message}`, 'error');
-    const errorMessage = { id: generateId(), role: 'assistant', content: `Erro: ${error.message}` };
-    chatState.messages.push(errorMessage);
-    window.ui.addAssistantMessage(errorMessage);
-  }
+  return prompt;
 }
 
-// Transcrição de áudio com opções de Replicate e Grok
-async function transcribeAudio(audioBlob) {
-  try {
-    window.ui.showProgress(10, 'Preparando áudio...');
-    const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
+function buildGeminiPrompt(messages, attachments, extended) {
+  const geminiMessages = [];
 
-    let transcription;
-    const model = window.uiState.activeModel;
+  for (const msg of messages) {
+      if (msg.role === 'user') {
+          // Adiciona o texto da mensagem do usuário
+          let parts = [{text: msg.content}];
 
-    if (model === 'grok-3') {
-      // Transcrição via Grok 3
-      window.ui.showProgress(30, 'Enviando para Grok...');
-      const response = await fetch('/api/grok/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      if (!response.ok) throw new Error('Erro na transcrição com Grok');
-      const data = await response.json();
-      transcription = data.text;
-    } else {
-      // Transcrição via Replicate (padrão atual)
-      window.ui.showProgress(30, 'Enviando para Replicate...');
-      const response = await fetch('/api/whisper', {
-        method: 'POST',
-        body: formData
-      });
-      if (!response.ok) throw new Error('Erro na transcrição com Replicate');
-      const data = await response.json();
-      transcription = data.text;
-    }
-
-    window.ui.showProgress(60, 'Formatando VINTRA...');
-    const formattedTranscription = formatToVINTRA(transcription);
-
-    window.ui.showProgress(80, 'Processando com Grok...');
-    const processedText = await sendToGrok3(formattedTranscription);
-
-    window.ui.showProgress(100, 'Concluído!');
-    return processedText;
-  } catch (error) {
-    console.error('Erro na transcrição:', error);
-    window.ui.showNotification('Erro na transcrição: ' + error.message, 'error');
-    return null;
-  }
-}
-
-// Formatar transcrição no padrão VINTRA (placeholder)
-function formatToVINTRA(transcription) {
-  // Suposição: VINTRA adiciona timestamp e tags; ajustar conforme o framework real
-  const timestamp = new Date().toLocaleTimeString();
-  return `[${timestamp}] VINTRA: ${transcription}`;
-}
-
-// Enviar para Grok 3 para processamento
-async function sendToGrok3(formattedTranscription) {
-  const response = await fetch('/api/grok', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: formattedTranscription }] })
-  });
-  if (!response.ok) throw new Error('Erro ao processar com Grok');
-  const data = await response.json();
-  return data.content;
-}
-
-// Sintetizar voz
-async function textToSpeech(text, voice = 'nova') {
-  try {
-    if (chatState.audioPlaying) {
-      window.ui.showNotification('Já existe um áudio em reprodução', 'warning');
-      return;
-    }
-    chatState.audioPlaying = true;
-
-    const response = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice })
-    });
-
-    if (!response.ok) throw new Error('Erro na síntese de voz');
-
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-
-    audio.addEventListener('ended', () => {
-      URL.revokeObjectURL(audioUrl);
-      chatState.audioPlaying = false;
-    });
-
-    audio.addEventListener('error', () => {
-      URL.revokeObjectURL(audioUrl);
-      chatState.audioPlaying = false;
-      window.ui.showNotification('Erro ao reproduzir o áudio', 'error');
-    });
-
-    await audio.play();
-    return true;
-  } catch (error) {
-    console.error('Erro na síntese de voz:', error);
-    window.ui.showNotification('Erro na síntese de voz: ' + error.message, 'error');
-    chatState.audioPlaying = false;
-    return false;
-  }
-}
-
-// Funções auxiliares
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function addTypingIndicator() {
-  const indicator = document.createElement('div');
-  indicator.className = 'typing-indicator';
-  indicator.innerHTML = `
-    <div class="message assistant">
-      <div class="message-bubble">
-        <div class="message-header">
-          <div class="message-avatar">V</div>
-          <strong>Verilo</strong>
-        </div>
-        <div class="message-content">
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.getElementById('messagesContainer').appendChild(indicator);
-  scrollToBottom();
-  return indicator;
-}
-
-function scrollToBottom() {
-  const container = document.getElementById('messagesContainer');
-  container.scrollTop = container.scrollHeight;
-}
-
-function saveConversation() {
-  if (chatState.messages.length < 2) return;
-
-  const conversationId = chatState.conversationId || generateId();
-  chatState.conversationId = conversationId;
-
-  const conversations = JSON.parse(localStorage.getItem('verilo_conversations')) || [];
-  const existingIndex = conversations.findIndex(c => c.id === conversationId);
-
-  const title = chatState.messages[0].content.substring(0, 30) + (chatState.messages[0].content.length > 30 ? '...' : '');
-  const conversation = {
-    id: conversationId,
-    title,
-    date: window.ui.getCurrentTime(),
-    model: document.getElementById('currentModel').textContent,
-    modelId: window.uiState.activeModel,
-    messages: chatState.messages
-  };
-
-  if (existingIndex >= 0) {
-    conversations[existingIndex] = conversation;
-  } else {
-    conversations.unshift(conversation);
+          // Se houver anexos na *mesma* mensagem, anexa-os
+          if (attachments && attachments.length > 0) {
+              for (const att of attachments) {
+                  if (att.type.startsWith('image/') && msg.id === messages[messages.length -1].id ) { //Verifica anexos na última msg
+                      parts.push({
+                        inlineData: {
+                          mimeType: att.type,
+                          data: att.url.split(',')[1] // Assume Base64
+                        }
+                      });
+                  } else if(msg.id === messages[messages.length -1].id){
+                      // Para outros tipos de anexos (não imagens), inclua como texto, na ÚLTIMA mensagem
+                      parts.push({ text: `Anexo: <span class="math-inline">\{att\.name\} \(</span>{att.type}) - URL: ${att.url}` });
+                  }
+              }
+          }
+          geminiMessages.push({ role: "user", parts: parts });
+      } else if (msg.role === 'assistant'){
+          // Mensagens do assistente (sem anexos, normalmente)
+          geminiMessages.push({ role: "model", parts: [{ text: msg.content }] });
+      }
   }
 
-  if (conversations.length > 100) conversations.pop();
-
-  try {
-    localStorage.setItem('verilo_conversations', JSON.stringify(conversations));
-  } catch (error) {
-    console.error('Erro ao salvar conversa:', error);
-    window.ui.showNotification('Não foi possível salvar a conversa: armazenamento cheio', 'warning');
-  }
-
-  window.ui.loadConversations();
+  return geminiMessages;
 }
-
-function addToPenseira(memory) {
-  const memories = JSON.parse(localStorage.getItem('verilo_penseira')) || [];
-  const existingIndex = memories.findIndex(m => m.title === memory.title);
-
-  if (existingIndex >= 0) {
-    memories[existingIndex] = memory;
-  } else {
-    memories.push(memory);
-  }
-
-  try {
-    localStorage.setItem('verilo_penseira', JSON.stringify(memories));
-    return true;
-  } catch (error) {
-    console.error('Erro ao salvar na Penseira:', error);
-    window.ui.showNotification('Não foi possível salvar na Penseira: armazenamento cheio', 'warning');
-    return false;
-  }
-}
-
-window.chat = {
-  sendMessage,
-  transcribeAudio,
-  textToSpeech,
-  addToPenseira
-};
